@@ -1,9 +1,37 @@
-# configs/config.py
 import torch
+import os
+import kagglehub
+
+def get_kaggle_dataset_path():
+    print("Verifying BraTS2020 dataset via KaggleHub...")
+    # Downloads once and caches locally. Subsequent calls are instant.
+    kaggle_path = kagglehub.dataset_download("awsaf49/brats20-dataset-training-validation")
+    
+    train_path = None
+    # Walk the directory to find the actual training data folder
+    for root, dirs, files in os.walk(kaggle_path):
+        if "MICCAI_BraTS2020_TrainingData" in dirs:
+            train_path = os.path.join(root, "MICCAI_BraTS2020_TrainingData")
+            break
+            
+    # Fallback to common structures just in case
+    if train_path is None:
+        candidates = [
+            os.path.join(kaggle_path, "BraTS2020_TrainingData", "MICCAI_BraTS2020_TrainingData"),
+            os.path.join(kaggle_path, "MICCAI_BraTS2020_TrainingData"),
+            kaggle_path,
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                train_path = c
+                break
+                
+    assert train_path is not None, f"Could not locate MICCAI_BraTS2020_TrainingData inside {kaggle_path}."
+    return train_path
 
 class Config:
-    # Paths
-    TRAIN_DATASET_PATH = "/Users/sherwinvahidimowlavi/Downloads/BraTS2020_TrainingData/MICCAI_BraTS2020_TrainingData/"
+    # Dynamic Path Setup
+    TRAIN_DATASET_PATH = get_kaggle_dataset_path()
     CHECKPOINT_DIR = "./checkpoints"
     RESULTS_DIR = "./results"
     
