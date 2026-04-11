@@ -1,4 +1,4 @@
-# models/bu_net_multitask_working.py
+# models/bu_net.py
 import torch.nn as nn
 import segmentation_models_pytorch as smp
 
