@@ -37,47 +37,32 @@ class BraTSDataset(Dataset):
         return len(self.valid_ids) * self.volume_slices
     
     def __getitem__(self, idx):
-        try:
-            patient_idx = idx // self.volume_slices
-            slice_idx = idx % self.volume_slices
-            
-            patient_id = self.valid_ids[patient_idx]
-            patient_path = os.path.join(self.data_path, patient_id)
-            
-            # Load data
-            flair = nib.load(os.path.join(patient_path, f'{patient_id}_flair.nii')).get_fdata()
-            t1ce = nib.load(os.path.join(patient_path, f'{patient_id}_t1ce.nii')).get_fdata()
-            seg = nib.load(os.path.join(patient_path, f'{patient_id}_seg.nii')).get_fdata()
-            
-            # Extract slice
-            slice_num = slice_idx + self.volume_start
-            flair_slice = cv2.resize(flair[:, :, slice_num], (self.img_size, self.img_size))
-            t1ce_slice = cv2.resize(t1ce[:, :, slice_num], (self.img_size, self.img_size))
-            seg_slice = cv2.resize(seg[:, :, slice_num], (self.img_size, self.img_size), 
-                                  interpolation=cv2.INTER_NEAREST)
-            
-            # Stack channels
-            image = np.stack([flair_slice, t1ce_slice], axis=0)
-            
-            # Fix labels
-            seg_slice[seg_slice == 4] = 3
-            
-            # Normalize
-            image = image / np.max(image) if np.max(image) > 0 else image
-            
-            return {
-                'image': torch.from_numpy(image).float(),
-                'mask': torch.from_numpy(seg_slice).long(),
-                'patient_id': patient_id,
-                'slice_idx': slice_idx,
-                'synthetic': False  
-            }
-        except Exception as e:
-            print(f"Error loading {patient_id if 'patient_id' in locals() else 'unknown'}: {e}")
-            return {
-                'image': torch.zeros(2, self.img_size, self.img_size).float(),
-                'mask': torch.zeros(self.img_size, self.img_size).long(),
-                'patient_id': 'error',
-                'slice_idx': 0,
-                'synthetic': False  
-            }
+        patient_idx = idx // self.volume_slices
+        slice_idx = idx % self.volume_slices
+        
+        patient_id = self.valid_ids[patient_idx]
+        patient_path = os.path.join(self.data_path, patient_id)
+        
+        # Load data
+        flair = nib.load(os.path.join(patient_path, f'{patient_id}_flair.nii')).get_fdata()
+        t1ce = nib.load(os.path.join(patient_path, f'{patient_id}_t1ce.nii')).get_fdata()
+        seg = nib.load(os.path.join(patient_path, f'{patient_id}_seg.nii')).get_fdata()
+        
+        # Extract slice
+        slice_num = slice_idx + self.volume_start
+        flair_slice = cv2.resize(flair[:, :, slice_num], (self.img_size, self.img_size))
+        t1ce_slice = cv2.resize(t1ce[:, :, slice_num], (self.img_size, self.img_size))
+        seg_slice = cv2.resize(seg[:, :, slice_num], (self.img_size, self.img_size),
+                            interpolation=cv2.INTER_NEAREST)
+        
+        image = np.stack([flair_slice, t1ce_slice], axis=0)
+        seg_slice[seg_slice == 4] = 3
+        image = image / np.max(image) if np.max(image) > 0 else image
+        
+        return {
+            'image': torch.from_numpy(image).float(),
+            'mask': torch.from_numpy(seg_slice).long(),
+            'patient_id': patient_id,
+            'slice_idx': slice_idx,
+            'synthetic': False
+        }
