@@ -29,11 +29,14 @@ def get_kaggle_dataset_path():
     assert train_path is not None, f"Could not locate MICCAI_BraTS2020_TrainingData inside {kaggle_path}."
     return train_path
 
+CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(CONFIG_DIR)
+
 class Config:
     # Dynamic Path Setup
     TRAIN_DATASET_PATH = get_kaggle_dataset_path()
-    CHECKPOINT_DIR = "./checkpoints"
-    RESULTS_DIR = "./results"
+    CHECKPOINT_DIR = os.path.join(ROOT_DIR, "checkpoints")
+    RESULTS_DIR = os.path.join(ROOT_DIR, "results")
     
     # Data
     IMG_SIZE = 128
