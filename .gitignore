@@ -1,0 +1,30 @@
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Virtual Environments (if you are using one locally)
+venv/
+env/
+.venv/
+
+# PyTorch Model Checkpoints
+checkpoints/
+*.pth
+*.pt
+
+# Data (Never commit massive MRI datasets to GitHub)
+*.nii
+*.nii.gz
+
+# Results and Outputs (Optional: keeps your repo from filling up with graphs)
+results/
+*.png
+*.json
+
+# OS Generated Files (Mac specific)
+.DS_Store
+.DS_Store?
