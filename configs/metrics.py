@@ -91,3 +91,26 @@ def evaluate(model, loader, device, num_classes=4):
     for k, v in all_hd95.items():
         results[k] = np.nanmean(v)
     return results
+
+def print_and_save_results(results, save_name, results_dir, label="TEST SET"):
+    """Print formatted results and save to JSON."""
+    print(f"\n{'=' * 50}")
+    print(f"{label} RESULTS")
+    print(f"{'=' * 50}")
+    print(f"  Dice  Background : {results['dice_class_0']:.4f}")
+    print(f"  Dice  NCR (1)    : {results['dice_class_1']:.4f}")
+    print(f"  Dice  Edema (2)  : {results['dice_class_2']:.4f}")
+    print(f"  Dice  ET  (3)    : {results['dice_class_3']:.4f}")
+    print(f"  Mean Tumor Dice  : {results['mean_tumor_dice']:.4f}  ← key metric")
+    print(f"  HD95  NCR (1)    : {results['hd95_class_1']:.2f} px")
+    print(f"  HD95  Edema (2)  : {results['hd95_class_2']:.2f} px")
+    print(f"  HD95  ET  (3)    : {results['hd95_class_3']:.2f} px")
+    print(f"  Mean Tumor HD95  : {results['mean_tumor_hd95']:.2f} px")
+    print("=" * 50)
+
+    import json, os
+    os.makedirs(results_dir, exist_ok=True)
+    path = os.path.join(results_dir, save_name)
+    with open(path, 'w') as f:
+        json.dump(results, f, indent=4)
+    print(f"✓ Saved to: {path}")

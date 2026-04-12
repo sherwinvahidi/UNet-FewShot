@@ -56,14 +56,12 @@ class Config:
     # Model
     ENCODER_NAME = 'resnet34'
     IN_CHANNELS = 2
-    NUM_TUMOR_TYPES = 5
     
     # Device
     DEVICE = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
     
     # Loss weights
     SEG_LOSS_WEIGHT = 1.0
-    CLS_LOSS_WEIGHT = 0.5
     
     @classmethod
     def create_dirs(cls):
