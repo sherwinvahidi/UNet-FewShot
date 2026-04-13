@@ -110,7 +110,6 @@ class Trainer:
                 self.save_checkpoint(epoch, is_best=False)
  
         print("✓ Training complete!")
-        self.plot_history()
         return self.history
  
     # ── Checkpointing ────────────────────────────────────────────
@@ -127,18 +126,3 @@ class Trainer:
         path = os.path.join(self.config.CHECKPOINT_DIR, filename)
         torch.save(checkpoint, path)
         print(f"✓ Saved: {filename}")
- 
-    # ── Plotting ─────────────────────────────────────────────────
- 
-    def plot_history(self):
-        plt.figure(figsize=(8, 5))
-        plt.plot(self.history['train_loss'], label='Train Loss')
-        plt.plot(self.history['val_loss'], label='Val Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Dice Loss')
-        plt.title('Training History')
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.config.RESULTS_DIR, 'training_history.png'))
-        plt.show()
