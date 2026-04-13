@@ -31,6 +31,12 @@ class PrototypicalTrainer:
             'val_loss': [],
             'k_shot_performance': {}
         }
+
+    def _freeze_batchnorm(self):
+        """Keep BN in eval mode — batch stats unreliable with small episodes."""
+        for module in self.model.modules():
+            if isinstance(module, (torch.nn.BatchNorm2d, torch.nn.BatchNorm1d)):
+                module.eval()
     
     def sample_episode(self, dataset, k_shot=5, n_query=10):
         """Sample one episode from dataset"""
@@ -71,6 +77,7 @@ class PrototypicalTrainer:
     def train_episode(self, k_shot=5, n_query=10):
         """Train on one episode with prototype-attention"""
         self.model.train()
+        self._freeze_batchnorm()
         
         # Sample episode
         episode = self.sample_episode(self.train_dataset, k_shot, n_query)

@@ -27,9 +27,8 @@ class PrototypicalSegmentation(nn.Module):
         self.encoder = self.unet.encoder
         self.decoder = self.unet.decoder
         self.seg_head = self.unet.segmentation_head
-        
-        # Get encoder output channels
         self.encoder_channels = self.encoder.out_channels[-1]
+        self.attention_gate = nn.Parameter(torch.tensor(0.0))
         
     def extract_features(self, x):
         """Extract deep features from encoder"""
@@ -40,7 +39,6 @@ class PrototypicalSegmentation(nn.Module):
         """
         Improved prototype computation with per-class weighting
         """
-        self.eval()
         prototypes = []
         
         with torch.no_grad():
@@ -166,6 +164,7 @@ class PrototypicalSegmentation(nn.Module):
         seg_output = self.unet(query_images)  # (B, num_classes, 128, 128)
         
         # Apply attention weighting
-        attended_output = seg_output * (1 + attention_weights)  # Boost by attention
+        gate = torch.sigmoid(self.attention_gate)
+        attended_output = seg_output * (1 + gate * attention_weights)
         
         return attended_output
