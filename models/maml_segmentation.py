@@ -1,12 +1,10 @@
 # models/maml_segmentation.py
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import segmentation_models_pytorch as smp
 from collections import OrderedDict
 import copy
 import numpy as np
-import random
 
 class MAMLSegmentation(nn.Module):
     """
