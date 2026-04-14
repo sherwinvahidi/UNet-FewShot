@@ -23,6 +23,25 @@ Both meta-learning methods significantly outperform the baseline at every k, wit
 
 ---
 
+## Context: Published Benchmarks
+
+Direct comparison with published results is limited because most prior work on BraTS uses binary segmentation (tumor vs. background) rather than multi-subregion classification, and many use all 4 MRI modalities. Our task — 4-class segmentation from only FLAIR and T1CE — is strictly harder.
+
+| Reference | Dataset | Task | Setup | Dice |
+|---|---|---|---|---|
+| **Ours (Prototypical)** | **BraTS 2020** | **4-class, 2ch** | **k=20, 50 eps** | **0.829** |
+| **Ours (MAML)** | **BraTS 2020** | **4-class, 2ch** | **k=20, 50 eps** | **0.823** |
+| **Ours (Baseline)** | **BraTS 2020** | **4-class, 2ch** | **Full supervision** | **0.737** |
+| Balasundaram et al. 2023 | BraTS 2021 | Binary, 1ch (T2) | 1-shot | 0.834 |
+| Kinagi et al. 2026 | BraTS 2021 | Binary, 2-way | 10-shot | 0.818 |
+| Alsaleh et al. 2024 | TotalSeg | Organs, 3D | 5-shot MAML | 0.777–0.903 |
+| MM-MSCA-AF 2025 | BraTS 2020 | 4-class, 4ch | Full supervision | 0.859 |
+| Adv. nnU-Net 2024 | BraTS-Glioma | 3-region, 4ch | Full supervision | 0.830 |
+
+Our prototypical network at k=20 (0.829) approaches full-supervision SOTA with 4 modalities (0.83–0.86) — using only 20 examples and 2 channels.
+
+---
+
 ## Project Structure
 
 ```
@@ -153,7 +172,28 @@ All notebooks use `sys.path.append('..')` to import from the project root. Run t
 
 ## References
 
-- Finn, C., Abbeel, P., & Levine, S. (2017). *Model-Agnostic Meta-Learning for Fast Adaptation of Deep Networks.* ICML.
-- Snell, J., Swersky, K., & Zemel, R. (2017). *Prototypical Networks for Few-Shot Learning.* NeurIPS.
-- Hu, Q., et al. (2022). *Synthetic Tumors Make AI Segment Tumors Better.* arXiv:2210.14845.
-- Balasundaram, A., et al. (2023). *A Foreground Prototype-Based One-Shot Segmentation of Brain Tumors.* Diagnostics.
+### Segmentation Architecture
+- Ronneberger, O., Fischer, P., & Brox, T. (2015). *U-Net: Convolutional Networks for Biomedical Image Segmentation.* MICCAI. [arXiv:1505.04597](https://arxiv.org/abs/1505.04597)
+- Rehman, M. U., et al. (2020). *BU-Net: Brain Tumor Segmentation Using Modified U-Net Architecture.* Electronics, 9(12), 2203.
+
+### Meta-Learning
+- Finn, C., Abbeel, P., & Levine, S. (2017). *Model-Agnostic Meta-Learning for Fast Adaptation of Deep Networks.* ICML. [arXiv:1703.03400](https://arxiv.org/abs/1703.03400)
+- Snell, J., Swersky, K., & Zemel, R. (2017). *Prototypical Networks for Few-Shot Learning.* NeurIPS. [arXiv:1703.05175](https://arxiv.org/abs/1703.05175)
+
+### Few-Shot Medical Image Segmentation
+- Balasundaram, A., et al. (2023). *A Foreground Prototype-Based One-Shot Segmentation of Brain Tumors.* Diagnostics, 13(7), 1282. [DOI:10.3390/diagnostics13071282](https://doi.org/10.3390/diagnostics13071282)
+- Pavithra, L. K., et al. (2023). *Brain Tumor Segmentation Using UNet-Few Shot Schematic Segmentation.* ITM Web of Conferences, 56, 04006.
+- Kinagi, S., et al. (2026). *Brain Tumor Segmentation Using Few-Shot Learning.* Proceedings of CRM 2025, Springer. [DOI:10.1007/978-981-96-8126-6_28](https://doi.org/10.1007/978-981-96-8126-6_28)
+- Alsaleh, A. M., et al. (2024). *Few-Shot Learning for Medical Image Segmentation Using 3D U-Net and MAML.* Diagnostics, 14(12), 1213. [DOI:10.3390/diagnostics14121213](https://doi.org/10.3390/diagnostics14121213)
+- Ali, S., et al. (2022). *Meta-learning with implicit gradients in a few-shot setting for medical image segmentation.* Computers in Biology and Medicine, 143, 105227.
+
+### Synthetic Data & Augmentation
+- Hu, Q., et al. (2022). *Synthetic Tumors Make AI Segment Tumors Better.* NeurIPS. [arXiv:2210.14845](https://arxiv.org/abs/2210.14845)
+
+### Full Supervision Benchmarks
+- Enhanced MM-MSCA-AF (2025). *Enhanced Brain Tumor Segmentation Using Multi-Modal Multi-Scale Contextual Aggregation and Attention Fusion.* Scientific Reports. [DOI:10.1038/s41598-025-21255-4](https://doi.org/10.1038/s41598-025-21255-4)
+- Ferreira, A., et al. (2024). *Brain Tumor Segmentation with Advanced nnU-Net: Pediatrics and Adults Tumors.* Brain Informatics.
+
+### Dataset
+- Menze, B. H., et al. (2015). *The Multimodal Brain Tumor Image Segmentation Benchmark (BRATS).* IEEE TMI, 34(10), 1993–2024.
+- Bakas, S., et al. (2017). *Advancing The Cancer Genome Atlas glioma MRI collections with expert segmentation labels and radiomic features.* Scientific Data, 4, 170117.
