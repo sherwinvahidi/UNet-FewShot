@@ -9,12 +9,13 @@ Usage:
 """
 
 import os
+import cv2
+import copy
+import torch
 import random
 import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader
 import nibabel as nib
-import cv2
+from torch.nn import CrossEntropyLoss
 
 try:
     from configs.metrics import dice_score
@@ -146,9 +147,6 @@ def kshot_finetune_eval(pretrained_model, sampler, device,
     on k support slices, then evaluate on query slices.
     Returns list of mean-tumor Dice scores across episodes.
     """
-    import copy
-    from torch.nn import CrossEntropyLoss
-
     ce = CrossEntropyLoss()
     episode_dice = []
 
