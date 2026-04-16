@@ -256,32 +256,28 @@ class MAMLTrainer:
         
         return total_loss / num_val_tasks
     
-    def evaluate_k_shot(self, k_values=[1, 5, 10, 20], num_tasks=20):
-        """
-        Evaluate MAML at different k-shot values
-        
-        For each k:
-          1. Sample k support examples
-          2. Adapt model (inner loop)
-          3. Evaluate on query set
-        """
+    def evaluate_k_shot(self, k_values=[1, 5, 10, 20], num_tasks=20, compute_hd95=False):
+        """Evaluate MAML at different k-shot values."""
+        from configs.metrics import hd95_multiclass
+
         results = {}
-        
+
         for k in k_values:
             print(f"\nEvaluating MAML at k={k}...")
             dice_scores = []
-            
+            hd95_scores = []
+
             for task_idx in range(num_tasks):
                 task = self.sample_task(self.val_dataset, k_shot=k, n_query=10)
-                
+
                 support_images = task['support_images'].to(self.config.DEVICE)
                 support_masks = task['support_masks'].to(self.config.DEVICE)
                 query_images = task['query_images'].to(self.config.DEVICE)
                 query_masks = task['query_masks'].to(self.config.DEVICE)
-                
+
                 # Adapt to support set
                 adapted_model, _ = self.inner_loop(support_images, support_masks)
-                
+
                 # Evaluate on query
                 adapted_model.eval()
                 with torch.no_grad():
@@ -289,16 +285,33 @@ class MAMLTrainer:
                     loss = self.loss_fn(query_pred, query_masks)
                     dice = 1 - loss.item()
                     dice_scores.append(dice)
-                
+
+                    if compute_hd95:
+                        preds = torch.argmax(query_pred, dim=1)
+                        hd = hd95_multiclass(preds, query_masks)
+                        hd95_scores.append(hd['mean_tumor_hd95'])
+
                 if (task_idx + 1) % 5 == 0:
-                    print(f"  Task {task_idx+1}/{num_tasks}: DICE = {dice:.4f}")
-            
+                    msg = f"  Task {task_idx+1}/{num_tasks}: DICE = {dice:.4f}"
+                    if compute_hd95:
+                        msg += f" | HD95 = {hd['mean_tumor_hd95']:.2f} px"
+                    print(msg)
+
             mean_dice = np.mean(dice_scores)
             std_dice = np.std(dice_scores)
-            results[k] = {'mean': mean_dice, 'std': std_dice}
-            
-            print(f"✓ k={k}: DICE = {mean_dice:.4f} ± {std_dice:.4f}")
-        
+            result = {'mean': mean_dice, 'std': std_dice}
+
+            if compute_hd95:
+                result['hd95_mean'] = float(np.nanmean(hd95_scores))
+                result['hd95_std'] = float(np.nanstd(hd95_scores))
+
+            results[k] = result
+
+            msg = f"✓ k={k}: DICE = {mean_dice:.4f} ± {std_dice:.4f}"
+            if compute_hd95:
+                msg += f"  |  HD95 = {result['hd95_mean']:.2f} ± {result['hd95_std']:.2f} px"
+            print(msg)
+
         return results
     
     def save_checkpoint(self, task_idx):

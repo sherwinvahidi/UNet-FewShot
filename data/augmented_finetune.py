@@ -93,18 +93,13 @@ def build_augmented_support(s_img, s_mask, augment_factor=3):
 
 def kshot_augmented_finetune_eval(pretrained_model, sampler, device,
                                    lr=1e-4, finetune_steps=10,
-                                   n_episodes=50, augment_factor=3):
-    """
-    Fine-tuning baseline with augmented support set.
+                                   n_episodes=50, augment_factor=3,
+                                   compute_hd95=False):
+    from configs.metrics import hd95_multiclass
 
-    For each episode:
-      1. Sample k support + n query
-      2. Augment support set (augment_factor copies)
-      3. Fine-tune on original + augmented support
-      4. Evaluate on query set
-    """
     ce = CrossEntropyLoss()
     episode_dice = []
+    episode_hd95 = []
 
     for ep, (support, query) in enumerate(sampler.iter_episodes(n_episodes)):
         model = copy.deepcopy(pretrained_model).to(device)
@@ -113,10 +108,8 @@ def kshot_augmented_finetune_eval(pretrained_model, sampler, device,
         s_img = support['image'].to(device)
         s_mask = support['mask'].to(device)
 
-        # Augment support set
         aug_img, aug_mask = build_augmented_support(s_img, s_mask, augment_factor)
 
-        # Fine-tune on augmented support
         model.train()
         for _ in range(finetune_steps):
             opt.zero_grad()
@@ -124,7 +117,6 @@ def kshot_augmented_finetune_eval(pretrained_model, sampler, device,
             loss.backward()
             opt.step()
 
-        # Evaluate on query set
         model.eval()
         q_img = query['image'].to(device)
         q_mask = query['mask'].to(device)
@@ -134,32 +126,34 @@ def kshot_augmented_finetune_eval(pretrained_model, sampler, device,
         dice = dice_score(preds, q_mask)
         episode_dice.append(dice['mean_tumor_dice'])
 
+        if compute_hd95:
+            hd = hd95_multiclass(preds, q_mask)
+            episode_hd95.append(hd['mean_tumor_hd95'])
+
         if (ep + 1) % 10 == 0:
-            print(f"  Episode {ep+1}/{n_episodes} | "
-                  f"Mean Dice: {np.mean(episode_dice):.4f}")
+            msg = f"  Episode {ep+1}/{n_episodes} | Dice: {np.mean(episode_dice):.4f}"
+            if compute_hd95:
+                msg += f" | HD95: {np.nanmean(episode_hd95):.2f} px"
+            print(msg)
 
     print(f"\nk={sampler.k_shot} (aug {augment_factor}x) | "
-          f"Mean Dice: {np.mean(episode_dice):.4f} "
-          f"± {np.std(episode_dice):.4f}")
+          f"Dice: {np.mean(episode_dice):.4f} ± {np.std(episode_dice):.4f}")
+    if compute_hd95:
+        print(f"  HD95: {np.nanmean(episode_hd95):.2f} ± {np.nanstd(episode_hd95):.2f} px")
+        return episode_dice, episode_hd95
     return episode_dice
 
 
 # ── Method 2: Augmented Prototypical Networks ────────────────────────────
 
 def kshot_augmented_prototypical_eval(proto_model, sampler, device,
-                                      n_episodes=50, augment_factor=3):
-    """
-    Prototypical network evaluation with augmented support set.
+                                      n_episodes=50, augment_factor=3,
+                                      compute_hd95=False):
+    from configs.metrics import hd95_multiclass
 
-    For each episode:
-      1. Sample k support + n query
-      2. Augment support set
-      3. Compute prototypes from original + augmented support
-      4. Predict query set using prototype-attention
-      5. Compute Dice
-    """
     loss_fn = smp.losses.DiceLoss(mode='multiclass')
     episode_dice = []
+    episode_hd95 = []
 
     proto_model.eval()
 
@@ -169,29 +163,32 @@ def kshot_augmented_prototypical_eval(proto_model, sampler, device,
         q_img = query['image'].to(device)
         q_mask = query['mask'].to(device)
 
-        # Augment support set
         aug_img, aug_mask = build_augmented_support(s_img, s_mask, augment_factor)
 
-        # Compute prototypes from augmented support
         with torch.no_grad():
-            prototypes = proto_model.compute_prototypes(aug_img, aug_mask)
-
-            # Predict using prototype-attention
             query_pred = proto_model.forward_with_prototype_attention(
                 q_img, aug_img, aug_mask
             )
-
             loss = loss_fn(query_pred, q_mask)
             dice = 1 - loss.item()
             episode_dice.append(dice)
 
+            if compute_hd95:
+                preds = torch.argmax(query_pred, dim=1)
+                hd = hd95_multiclass(preds, q_mask)
+                episode_hd95.append(hd['mean_tumor_hd95'])
+
         if (ep + 1) % 10 == 0:
-            print(f"  Episode {ep+1}/{n_episodes} | "
-                  f"Mean Dice: {np.mean(episode_dice):.4f}")
+            msg = f"  Episode {ep+1}/{n_episodes} | Dice: {np.mean(episode_dice):.4f}"
+            if compute_hd95:
+                msg += f" | HD95: {np.nanmean(episode_hd95):.2f} px"
+            print(msg)
 
     print(f"\nProto k={sampler.k_shot} (aug {augment_factor}x) | "
-          f"Mean Dice: {np.mean(episode_dice):.4f} "
-          f"± {np.std(episode_dice):.4f}")
+          f"Dice: {np.mean(episode_dice):.4f} ± {np.std(episode_dice):.4f}")
+    if compute_hd95:
+        print(f"  HD95: {np.nanmean(episode_hd95):.2f} ± {np.nanstd(episode_hd95):.2f} px")
+        return episode_dice, episode_hd95
     return episode_dice
 
 
@@ -199,18 +196,13 @@ def kshot_augmented_prototypical_eval(proto_model, sampler, device,
 
 def kshot_augmented_maml_eval(maml_model, sampler, device,
                                inner_lr=0.01, num_inner_steps=5,
-                               n_episodes=50, augment_factor=3):
-    """
-    MAML evaluation with augmented support set in the inner loop.
+                               n_episodes=50, augment_factor=3,
+                               compute_hd95=False):
+    from configs.metrics import hd95_multiclass
 
-    For each episode:
-      1. Sample k support + n query
-      2. Augment support set
-      3. Inner loop: adapt cloned model on augmented support
-      4. Evaluate adapted model on query set
-    """
     loss_fn = smp.losses.DiceLoss(mode='multiclass')
     episode_dice = []
+    episode_hd95 = []
 
     for ep, (support, query) in enumerate(sampler.iter_episodes(n_episodes)):
         s_img = support['image'].to(device)
@@ -218,10 +210,8 @@ def kshot_augmented_maml_eval(maml_model, sampler, device,
         q_img = query['image'].to(device)
         q_mask = query['mask'].to(device)
 
-        # Augment support set
         aug_img, aug_mask = build_augmented_support(s_img, s_mask, augment_factor)
 
-        # Inner loop on augmented support
         adapted_model = copy.deepcopy(maml_model.model).to(device)
         adapted_model.train()
         inner_opt = torch.optim.SGD(adapted_model.parameters(), lr=inner_lr)
@@ -233,7 +223,6 @@ def kshot_augmented_maml_eval(maml_model, sampler, device,
             loss.backward()
             inner_opt.step()
 
-        # Evaluate on query
         adapted_model.eval()
         with torch.no_grad():
             q_pred = adapted_model(q_img)
@@ -241,11 +230,20 @@ def kshot_augmented_maml_eval(maml_model, sampler, device,
             dice = 1 - q_loss.item()
             episode_dice.append(dice)
 
+            if compute_hd95:
+                preds = torch.argmax(q_pred, dim=1)
+                hd = hd95_multiclass(preds, q_mask)
+                episode_hd95.append(hd['mean_tumor_hd95'])
+
         if (ep + 1) % 10 == 0:
-            print(f"  Episode {ep+1}/{n_episodes} | "
-                  f"Mean Dice: {np.mean(episode_dice):.4f}")
+            msg = f"  Episode {ep+1}/{n_episodes} | Dice: {np.mean(episode_dice):.4f}"
+            if compute_hd95:
+                msg += f" | HD95: {np.nanmean(episode_hd95):.2f} px"
+            print(msg)
 
     print(f"\nMAML k={sampler.k_shot} (aug {augment_factor}x) | "
-          f"Mean Dice: {np.mean(episode_dice):.4f} "
-          f"± {np.std(episode_dice):.4f}")
+          f"Dice: {np.mean(episode_dice):.4f} ± {np.std(episode_dice):.4f}")
+    if compute_hd95:
+        print(f"  HD95: {np.nanmean(episode_hd95):.2f} ± {np.nanstd(episode_hd95):.2f} px")
+        return episode_dice, episode_hd95
     return episode_dice

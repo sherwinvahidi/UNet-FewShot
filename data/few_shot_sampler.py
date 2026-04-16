@@ -18,11 +18,11 @@ import nibabel as nib
 from torch.nn import CrossEntropyLoss
 
 try:
-    from configs.metrics import dice_score
+    from configs.metrics import dice_score, hd95_multiclass
 except ModuleNotFoundError:
     import sys
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-    from configs.metrics import dice_score
+    from configs.metrics import dice_score, hd95_multiclass
 
 IMG_SIZE       = 128
 VOLUME_SLICES  = 100
@@ -141,21 +141,22 @@ class FewShotSampler:
 # ── k-shot fine-tuning baseline ──────────────────────────────────────────────
 
 def kshot_finetune_eval(pretrained_model, sampler, device,
-                        lr=1e-4, finetune_steps=10, n_episodes=50):
+                        lr=1e-4, finetune_steps=10, n_episodes=50,
+                        compute_hd95=False):
     """
     Baseline: for each episode, fine-tune a copy of the pretrained model
     on k support slices, then evaluate on query slices.
-    Returns list of mean-tumor Dice scores across episodes.
+    Returns list of mean-tumor Dice scores (and optionally HD95).
     """
     ce = CrossEntropyLoss()
     episode_dice = []
+    episode_hd95 = []
 
     for ep, (support, query) in enumerate(sampler.iter_episodes(n_episodes)):
-        # Fresh copy per episode so we don't bleed across episodes
         model = copy.deepcopy(pretrained_model).to(device)
         opt   = torch.optim.Adam(model.parameters(), lr=lr)
 
-        # ── Fine-tune on support set ──
+        # Fine-tune on support set
         model.train()
         s_img  = support['image'].to(device)
         s_mask = support['mask'].to(device)
@@ -165,22 +166,31 @@ def kshot_finetune_eval(pretrained_model, sampler, device,
             loss.backward()
             opt.step()
 
-        # ── Evaluate on query set ──
+        # Evaluate on query set
         model.eval()
         q_img  = query['image'].to(device)
         q_mask = query['mask'].to(device)
         with torch.no_grad():
             preds = torch.argmax(model(q_img), dim=1)
 
-        # Per-class Dice (reuse your existing dice_score fn)
-        dice = dice_score(preds, q_mask)   # imported from eval notebook
+        dice = dice_score(preds, q_mask)
         episode_dice.append(dice['mean_tumor_dice'])
 
+        if compute_hd95:
+            hd = hd95_multiclass(preds, q_mask)
+            episode_hd95.append(hd['mean_tumor_hd95'])
+
         if (ep + 1) % 10 == 0:
-            print(f"  Episode {ep+1}/{n_episodes} | "
-                  f"Mean Dice: {np.mean(episode_dice):.4f}")
+            msg = f"  Episode {ep+1}/{n_episodes} | Dice: {np.mean(episode_dice):.4f}"
+            if compute_hd95:
+                msg += f" | HD95: {np.nanmean(episode_hd95):.2f} px"
+            print(msg)
 
     print(f"\nk={sampler.k_shot} shot | "
-          f"Mean Dice over {n_episodes} episodes: {np.mean(episode_dice):.4f} "
-          f"± {np.std(episode_dice):.4f}")
+          f"Dice: {np.mean(episode_dice):.4f} ± {np.std(episode_dice):.4f}")
+    if compute_hd95:
+        print(f"  HD95: {np.nanmean(episode_hd95):.2f} ± {np.nanstd(episode_hd95):.2f} px")
+
+    if compute_hd95:
+        return episode_dice, episode_hd95
     return episode_dice

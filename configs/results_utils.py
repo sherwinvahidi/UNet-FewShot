@@ -14,11 +14,18 @@ def load_results(results_dir, filename):
 
 
 def save_kshot_results(results, results_dir, filename):
-    """Save k-shot results dict to JSON."""
+    """Save k-shot results dict to JSON — preserves all fields."""
     os.makedirs(results_dir, exist_ok=True)
     path = os.path.join(results_dir, filename)
-    serializable = {str(k): {'mean': float(v['mean']), 'std': float(v['std'])}
-                    for k, v in results.items()}
+    serializable = {}
+    for k, v in results.items():
+        entry = {}
+        for field, value in v.items():
+            if isinstance(value, list):
+                entry[field] = [float(x) for x in value]
+            else:
+                entry[field] = float(value)
+        serializable[str(k)] = entry
     with open(path, 'w') as f:
         json.dump(serializable, f, indent=4)
     print(f"✓ Saved to: {path}")

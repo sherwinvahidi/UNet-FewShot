@@ -1,11 +1,12 @@
 # training/prototypical_trainer.py (COMPLETE FIXED VERSION)
-import torch
-import torch.nn as nn
-import segmentation_models_pytorch as smp
-from tqdm import tqdm
-import numpy as np
-import random
 import os
+import torch
+import random
+import numpy as np
+import segmentation_models_pytorch as smp
+
+from tqdm import tqdm
+from configs.metrics import hd95_multiclass
 
 class PrototypicalTrainer:
     """
@@ -154,41 +155,55 @@ class PrototypicalTrainer:
         
         return total_loss / num_val_episodes
     
-    def evaluate_k_shot(self, k_values=[1, 5, 10, 20], num_episodes=20):
-        """
-        Evaluate few-shot performance at different k values
-        """
+    def evaluate_k_shot(self, k_values=[1, 5, 10, 20], num_episodes=20, compute_hd95=False):
+        """Evaluate few-shot performance at different k values."""
+        
+
         self.model.eval()
         results = {}
-        
+
         for k in k_values:
             dice_scores = []
-            
+            hd95_scores = []
+
             for _ in tqdm(range(num_episodes), desc=f"Evaluating k={k}"):
                 episode = self.sample_episode(self.val_dataset, k_shot=k, n_query=10)
-                
+
                 support_images = episode['support_images'].to(self.config.DEVICE)
                 support_masks = episode['support_masks'].to(self.config.DEVICE)
                 query_images = episode['query_images'].to(self.config.DEVICE)
                 query_masks = episode['query_masks'].to(self.config.DEVICE)
-                
+
                 with torch.no_grad():
-                    # Use prototype-attention method
                     query_pred = self.model.forward_with_prototype_attention(
                         query_images, support_images, support_masks
                     )
-                    
+
                     # Dice = 1 - Dice loss
                     loss = self.loss_fn(query_pred, query_masks)
                     dice = 1 - loss.item()
                     dice_scores.append(dice)
-            
+
+                    if compute_hd95:
+                        preds = torch.argmax(query_pred, dim=1)
+                        hd = hd95_multiclass(preds, query_masks)
+                        hd95_scores.append(hd['mean_tumor_hd95'])
+
             mean_dice = np.mean(dice_scores)
             std_dice = np.std(dice_scores)
-            results[k] = {'mean': mean_dice, 'std': std_dice}
-            
-            print(f"k={k}: DICE = {mean_dice:.4f} ± {std_dice:.4f}")
-        
+            result = {'mean': mean_dice, 'std': std_dice}
+
+            if compute_hd95:
+                result['hd95_mean'] = float(np.nanmean(hd95_scores))
+                result['hd95_std'] = float(np.nanstd(hd95_scores))
+
+            results[k] = result
+
+            msg = f"k={k}: DICE = {mean_dice:.4f} ± {std_dice:.4f}"
+            if compute_hd95:
+                msg += f"  |  HD95 = {result['hd95_mean']:.2f} ± {result['hd95_std']:.2f} px"
+            print(msg)
+
         return results
     
     def save_checkpoint(self, episode):
