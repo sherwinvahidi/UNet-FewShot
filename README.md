@@ -3,11 +3,13 @@
 **CS7150 Deep Learning — Final Project**
 **Yuzhe Li & Sherwin Vahidimowlavi | Northeastern University | Spring 2026**
 
-Can we segment brain tumors with only 1–20 labeled examples? This project compares three few-shot adaptation strategies on the BraTS 2020 dataset: fine-tuning baseline, prototypical networks with gated attention, and MAML (first-order approximation).
+Can we segment brain tumors with only 1–20 labeled examples? This project compares three few-shot adaptation strategies on the BraTS 2020 dataset — fine-tuning baseline, prototypical networks with gated attention, and MAML (first-order approximation) — and evaluates cross-tumor generalization on the BraTS-PEDs pediatric dataset.
 
 ---
 
 ## Key Results
+
+### In-Distribution (BraTS 2020 → BraTS 2020)
 
 | Method | k=1 | k=5 | k=10 | k=20 |
 |---|---|---|---|---|
@@ -15,11 +17,33 @@ Can we segment brain tumors with only 1–20 labeled examples? This project comp
 | **Prototypical Networks** | **0.799 ± 0.052** | 0.795 ± 0.086 | 0.797 ± 0.061 | **0.829 ± 0.059** |
 | MAML (FOMAML) | 0.775 ± 0.070 | **0.800 ± 0.067** | **0.800 ± 0.061** | 0.823 ± 0.072 |
 
-*Mean Tumor Dice Score (classes 1–3), 50 episodes per k value.*
+*Mean Tumor Dice Score (classes 1–3), 50 episodes per k value. Full supervision Dice: 0.737.*
 
-Both meta-learning methods significantly outperform the baseline at every k, with the largest gap at k=1 (+0.204 for prototypical). Full supervision Dice: 0.737.
+Both meta-learning methods significantly outperform the baseline at every k, with the largest gap at k=1 (+0.204 for prototypical). Prototypical at k=20 (0.829) exceeds full supervision.
 
 ![Method Comparison](results/method_comparison.png)
+
+### Cross-Tumor Transfer (BraTS 2020 → BraTS-PEDs)
+
+| Method | k=1 | k=5 | k=10 | k=20 |
+|---|---|---|---|---|
+| Baseline Fine-tuning | 0.143 ± 0.067 | 0.158 ± 0.063 | 0.168 ± 0.065 | 0.168 ± 0.073 |
+| **Prototypical Networks** | **0.380 ± 0.071** | 0.370 ± 0.055 | **0.376 ± 0.067** | 0.379 ± 0.076 |
+| MAML (FOMAML) | 0.372 ± 0.073 | **0.376 ± 0.066** | 0.369 ± 0.059 | **0.380 ± 0.071** |
+
+*Mean Tumor Dice Score, 200 episodes per k value. Train: BraTS 2020 adult glioblastoma. Query: BraTS-PEDs pediatric high-grade glioma.*
+
+**Performance Drop: In-Distribution → Cross-Tumor (Dice)**
+
+| Method | k=1 | k=5 | k=10 | k=20 |
+|---|---|---|---|---|
+| Baseline | -0.452 (76% drop) | -0.574 (78% drop) | -0.568 (77% drop) | -0.567 (77% drop) |
+| Prototypical | -0.419 (52% drop) | -0.425 (53% drop) | -0.421 (53% drop) | -0.450 (54% drop) |
+| MAML | -0.403 (52% drop) | -0.424 (53% drop) | -0.431 (54% drop) | -0.444 (54% drop) |
+
+Baseline loses ~77% of its performance on pediatric data. Prototypical and MAML lose ~53%. Meta-learning methods degrade more gracefully because they preserve pretrained features instead of destructively fine-tuning on out-of-distribution support examples.
+
+![Cross-Tumor Comparison](results/cross_tumor_comparison.png)
 
 ---
 
@@ -48,31 +72,33 @@ Our prototypical network at k=20 (0.829) approaches full-supervision SOTA with 4
 UNet-FewShot/
 ├── configs/
 │   ├── config.py              # Centralized hyperparameters and paths
-│   ├── metrics.py             # Dice score, HD95, full evaluation loop
+│   ├── metrics.py             # Dice score, HD95, hd95_multiclass, evaluation loop
 │   ├── model_utils.py         # Shared checkpoint loading
-│   └── results_utils.py       # Shared JSON save/load/print utilities
+│   └── results_utils.py       # Save/load/print JSON results (preserves all fields)
 ├── data/
 │   ├── dataset.py             # BraTSDataset — loads FLAIR + T1CE slices
-│   ├── splits.py              # Consistent 70/20/10 train/val/test splits
+│   ├── splits.py              # Consistent 70/20/10 train/val/test splits (seed=42)
 │   ├── few_shot_sampler.py    # Episode sampling + k-shot fine-tune eval
 │   ├── augmented_finetune.py  # Support set augmentation for all methods
 │   └── synthetic_tumor_generator.py  # Synthetic tumor generation (experimental)
 ├── models/
-│   ├── bu_net.py              # BUNet — ResNet34 U-Net baseline
+│   ├── bu_net.py              # BUNet — ResNet34 U-Net (24.4M params)
 │   ├── prototypical_segmentation.py  # Gated prototype-attention network
 │   └── maml_segmentation.py   # FOMAML wrapper + trainer
 ├── training/
 │   ├── trainer.py             # Supervised training loop (Dice loss)
 │   └── prototypical_trainer.py # Episodic training with BN freeze
 ├── notebooks/
-│   ├── 1_baseline_training.ipynb      # Train supervised U-Net
-│   ├── 2_baseline_evaluation.ipynb    # K-shot fine-tuning evaluation
-│   ├── 3_prototypical_training.ipynb  # Train + evaluate prototypical net
-│   ├── 4_maml_training.ipynb          # Train + evaluate MAML
-│   ├── 5_interpretability.ipynb       # Visualizations + method comparison
-│   └── 6_augmentation_ablation.ipynb  # Support set augmentation experiment
+│   ├── 1_baseline_training.ipynb           # Train supervised U-Net
+│   ├── 2_baseline_evaluation.ipynb         # K-shot fine-tuning evaluation
+│   ├── 3_prototypical_training.ipynb       # Train + evaluate prototypical net
+│   ├── 4_maml_training.ipynb               # Train + evaluate MAML
+│   ├── 5_interpretability.ipynb            # Visualizations + method comparison
+│   ├── 6_augmentation_ablation.ipynb       # Support set augmentation experiment
+│   └── 7_cross_tumor_transfer_evaluation.ipynb  # BraTS 2020 → BraTS-PEDs transfer
 ├── results/                   # Saved JSON metrics + PNG figures
 ├── checkpoints/               # Model checkpoints (gitignored)
+├── PKG - BraTS-PEDs-v1/       # BraTS-PEDs dataset (gitignored)
 └── .gitignore
 ```
 
@@ -101,13 +127,39 @@ First-order MAML (FOMAML) with 5 inner-loop SGD steps on the support set. Due to
 
 1. **Preserving pretrained features > adaptation mechanism.** Both prototypical and MAML achieve ~0.80 Dice by avoiding destructive fine-tuning, while the baseline degrades to 0.595 at k=1 due to overfitting.
 
-2. **Gated attention is critical.** Ungated prototype attention destroys the U-Net's calibration — Dice dropped to 0.248 without the gate. The gate learned to start conservative and rely primarily on U-Net features.
+2. **Gated attention is critical.** Ungated prototype attention destroys the U-Net's calibration — Dice dropped to 0.248 without the gate. The gate learned to stay near zero, correctly ignoring unreliable edema and enhancing prototypes.
 
-3. **Support set augmentation only helps when overfitting is the bottleneck.** Augmentation improved baseline k=1 by +0.098 but provided no benefit to prototypical/MAML, which already preserve pretrained features.
+3. **BatchNorm freeze is essential.** Small episodic batches (10 images) corrupt batch statistics. Using stable running statistics from baseline training fixed this.
 
-4. **Prototype resolution bottleneck.** Small tumor subregions (edema, enhancing) vanish when masks are downsampled to the encoder's 4×4 spatial resolution, producing empty prototypes for those classes.
+4. **Support set augmentation only helps when overfitting is the bottleneck.** Augmentation improved baseline k=1 by +0.098 Dice and -11.7 px HD95 but provided no benefit to prototypical/MAML.
 
-5. **FOMAML limitation.** The first-order approximation collapses to standard training. Despite this, results are strong because the pretrained ImageNet backbone already provides a good initialization.
+5. **Prototype resolution bottleneck.** Small tumor subregions vanish when masks are downsampled to the encoder's 4×4 spatial resolution, producing empty prototypes for edema and enhancing.
+
+6. **FOMAML isn't truly meta-learning.** The outer loop reduces to standard training. Good results come from the pretrained backbone and controlled inner-loop fine-tuning, not meta-optimization.
+
+7. **Meta-learning improves Dice but HD95 is mixed.** MAML shows worse boundary outliers on edema (80+ px) than baseline or prototypical, suggesting area overlap and boundary precision require different optimization strategies.
+
+8. **Cross-tumor transfer reveals graceful degradation for meta-learning.** On pediatric tumors, baseline loses 77% of Dice while prototypical and MAML lose only 53%. Meta-learning methods preserve pretrained features that transfer better to unseen tumor types, while baseline fine-tuning on adult support examples actively misleads the model on pediatric queries.
+
+---
+
+## Cross-Tumor Transfer Details
+
+### Experiment Design
+- **Train:** BraTS 2020 (258 adult glioblastoma patients, all training done here)
+- **Support pool:** BraTS 2020 validation (74 adult patients)
+- **Query pool:** BraTS-PEDs (257 pediatric high-grade glioma patients, primarily diffuse midline gliomas)
+- **Episodes:** 200 per k value (4× more than in-distribution for reliable estimates)
+- **Metrics:** Mean Tumor Dice + HD95
+
+### Why Performance Drops
+- **Different tumor location:** Adult GBM grows in cerebral hemispheres; pediatric DMGs grow in brainstem/pons
+- **Different morphology:** Adult GBM has layered structure (necrotic core → enhancing ring → edema); pediatric DMGs infiltrate diffusely without clear boundaries
+- **Different brain anatomy:** Pediatric brains have different proportions and tissue contrast
+- **Much smaller tumors:** BraTS-PEDs label 3 has only 607 voxels (0.01%) vs substantially larger regions in adult BraTS
+
+### Why Meta-Learning Degrades More Gracefully
+Baseline fine-tuning modifies all 24M parameters based on adult support examples, pushing the model further toward adult-specific features and away from pediatric tumor patterns. Prototypical networks compare features without modifying weights — the pretrained encoder features (edges, textures, contrast patterns) transfer across age groups even if tumor-specific features don't. MAML's controlled inner-loop fine-tuning is less destructive than the baseline's aggressive adaptation.
 
 ---
 
@@ -133,40 +185,60 @@ cd UNet-FewShot
 pip install -r requirements.txt
 ```
 
-### Dataset
-The BraTS 2020 dataset is downloaded automatically via KaggleHub on first run. You need a Kaggle account with the dataset accepted:
+### Datasets
+
+**BraTS 2020** — Downloaded automatically via KaggleHub on first run:
 1. Go to [BraTS2020 on Kaggle](https://www.kaggle.com/datasets/awsaf49/brats20-dataset-training-validation)
 2. Accept the dataset terms
 3. Set up Kaggle API credentials (`~/.kaggle/kaggle.json`)
 
+**BraTS-PEDs** — Download manually for cross-tumor transfer (Notebook 7):
+1. Go to [BraTS-PEDs on TCIA](https://www.cancerimagingarchive.net/collection/brats-peds/)
+2. Download the Training set (257 labeled cases, ~33 GB)
+3. Place in `PKG - BraTS-PEDs-v1/BraTS-PEDs-v1/Training/` at project root
+
 ### Running
 Execute notebooks in order:
 ```
-1_baseline_training.ipynb      → trains the U-Net baseline (~15 hours on MPS)
-2_baseline_evaluation.ipynb    → k-shot fine-tuning evaluation (~2 hours)
-3_prototypical_training.ipynb  → episodic training + evaluation (~1 hour)
-4_maml_training.ipynb          → MAML training + evaluation (~1 hour)
-5_interpretability.ipynb       → generates all comparison figures
-6_augmentation_ablation.ipynb  → augmentation experiment (~3 hours)
+1_baseline_training.ipynb           → Train U-Net baseline (~15 hours on MPS)
+2_baseline_evaluation.ipynb         → K-shot fine-tuning eval with Dice + HD95 (~3-4 hours)
+3_prototypical_training.ipynb       → Episodic training + eval (~2-3 hours)
+4_maml_training.ipynb               → MAML training + eval (~2-3 hours)
+5_interpretability.ipynb            → All comparison figures and error analysis
+6_augmentation_ablation.ipynb       → Augmentation experiment (~6-8 hours)
+7_cross_tumor_transfer_evaluation.ipynb → BraTS-PEDs evaluation (~12-18 hours)
 ```
 
-All notebooks use `sys.path.append('..')` to import from the project root. Run them from inside the `notebooks/` directory.
+All notebooks use `sys.path.append('..')` to import from the project root. Run from inside the `notebooks/` directory.
 
 ---
 
 ## Results Gallery
 
-### Method Comparison
+### Method Comparison (In-Distribution)
 ![Method Comparison](results/method_comparison.png)
+
+### Cross-Tumor Transfer
+![Cross-Tumor Comparison](results/cross_tumor_comparison.png)
 
 ### Prediction Visualization
 ![Predictions](results/prediction_comparison.png)
 
-### Per-Class Error Analysis
-![Error Analysis](results/error_analysis.png)
+### Cross-Tumor Predictions
+![Cross-Tumor Predictions](results/cross_tumor_predictions.png)
+
+### Error Analysis (Dice + HD95)
+![Error Analysis Dice](results/error_analysis_all.png)
+![Error Analysis HD95](results/error_analysis_hd95_all.png)
+
+### Prototype Visualization
+![Prototypes](results/prototype_viz.png)
+
+### MAML Adaptation
+![MAML Adaptation](results/maml_adaptation.png)
 
 ### Augmentation Ablation
-![Augmentation](results/augmentation_ablation_all.png)
+![Augmentation Dice](results/augmentation_ablation_dice.png)
 
 ---
 
@@ -194,6 +266,7 @@ All notebooks use `sys.path.append('..')` to import from the project root. Run t
 - Enhanced MM-MSCA-AF (2025). *Enhanced Brain Tumor Segmentation Using Multi-Modal Multi-Scale Contextual Aggregation and Attention Fusion.* Scientific Reports. [DOI:10.1038/s41598-025-21255-4](https://doi.org/10.1038/s41598-025-21255-4)
 - Ferreira, A., et al. (2024). *Brain Tumor Segmentation with Advanced nnU-Net: Pediatrics and Adults Tumors.* Brain Informatics.
 
-### Dataset
+### Datasets
 - Menze, B. H., et al. (2015). *The Multimodal Brain Tumor Image Segmentation Benchmark (BRATS).* IEEE TMI, 34(10), 1993–2024.
 - Bakas, S., et al. (2017). *Advancing The Cancer Genome Atlas glioma MRI collections with expert segmentation labels and radiomic features.* Scientific Data, 4, 170117.
+- BraTS-PEDs. *The Brain Tumor Segmentation in Pediatric MRI.* The Cancer Imaging Archive. [DOI:10.7937/dx5c-tj86](https://doi.org/10.7937/dx5c-tj86)
