@@ -28,3 +28,6 @@ checkpoints/
 .vscode/
 .idea/
 EOF
+
+# From project root
+echo 'PKG - BraTS-PEDs-v1/' >> .gitignore
